@@ -3,31 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Merge Images Vertically</title>
+    <title>Vertical Image Merger</title>
     
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#007bff">
+    <meta name="theme-color" content="#ffffff">
 
     <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            padding: 2em;
-            background-color: #f4f7f6;
+            background-color: #f0f0f0; /* Light gray background */
             color: #333;
             line-height: 1.6;
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1em;
+            box-sizing: border-box;
         }
         .container {
-            /* === CHANGED THIS LINE === */
-            max-width: 960px; /* Increased from 800px for a wider layout */
-            margin: 0 auto;
+            max-width: 960px;
+            width: 100%;
+            margin: 1em auto;
             background: #ffffff;
             padding: 2.5rem;
             border-radius: 10px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            text-align: center;
         }
         h1 {
-            color: #2c3e50;
+            color: #111;
             margin-bottom: 0.5rem;
         }
         p {
@@ -38,14 +46,14 @@
             display: block;
             margin: 20px auto;
             padding: 12px;
-            border: 2px dashed #bdc3c7;
+            border: 2px dashed #ccc;
             border-radius: 5px;
-            background-color: #ecf0f1;
+            background-color: #f9f9f9;
             cursor: pointer;
             transition: border-color 0.3s;
         }
         input[type="file"]:hover {
-            border-color: #3498db;
+            border-color: #333;
         }
         .button, .button-link {
             padding: 12px 28px;
@@ -53,6 +61,7 @@
             font-weight: bold;
             cursor: pointer;
             color: white;
+            background-color: #333; /* Main button color */
             border: none;
             border-radius: 5px;
             transition: background-color 0.3s, transform 0.2s;
@@ -61,15 +70,19 @@
             margin: 5px;
         }
         .button:hover:not(:disabled), .button-link:hover {
+            background-color: #111; /* Darken on hover */
             transform: translateY(-2px);
         }
-        #merge-button { background-color: #3498db; }
-        #merge-button:hover { background-color: #2980b9; }
-        #download-button { background-color: #2ecc71; display: none; }
-        #download-button:hover { background-color: #27ae60; }
-        #upload-button-link { background-color: #9b59b6; display: none; }
-        #upload-button-link:hover { background-color: #8e44ad; }
-
+        /* Secondary button style */
+        .button.secondary, .button-link.secondary {
+            background-color: #555;
+        }
+        .button.secondary:hover, .button-link.secondary:hover {
+            background-color: #333;
+        }
+        #download-button, #merge-again-button {
+            display: none;
+        }
         #preview-container { margin-top: 30px; }
         #merged-image {
             max-width: 100%;
@@ -78,10 +91,10 @@
             display: none;
         }
         .instructions {
-            display: none;
             margin-top: 20px;
             font-weight: bold;
-            color: #34495e;
+            color: #333;
+            display: none; /* Hide instructions initially */
         }
     </style>
 </head>
@@ -89,65 +102,74 @@
 
     <div class="container">
         <h1>Vertical Image Merger</h1>
-        <p>Combine multiple images into one, stacked vertically.</p>
+        <p>Combine multiple images into a single file, stacked vertically.</p>
 
         <p class="instructions" style="display: block;"><b>Step 1:</b> Select your images.</p>
         <input type="file" id="image-input" multiple accept="image/*">
-        <button id="merge-button" class="button">Merge Images</button>
+        
+        <div class="button-container">
+            <button id="merge-button" class="button">Merge Images</button>
+            <a id="upload-button-link" href="https://postimages.org/" target="_blank" class="button-link secondary">Upload to Postimages</a>
+        </div>
 
         <div id="preview-container">
             <canvas id="canvas" style="display:none;"></canvas>
             <img id="merged-image" src="" alt="Merged Image Preview">
             
-            <p id="step2-instructions" class="instructions"><b>Step 2:</b> Download your new image.</p>
-            <button id="download-button" class="button">Download Merged Image</button>
-            
-            <p id="step3-instructions" class="instructions"><b>Step 3:</b> Click below to upload it.</p>
-            <a id="upload-button-link" href="https://postimages.org/" target="_blank" class="button-link">Upload to Postimages</a>
+            <p id="step2-instructions" class="instructions"><b>Step 2:</b> Download your new image or start over.</p>
+            <div class="button-container">
+                <button id="download-button" class="button">Download Merged Image</button>
+                <button id="merge-again-button" class="button secondary">Merge Again</button>
+            </div>
         </div>
     </div>
 
     <script>
-        // DOM Elements
         const imageInput = document.getElementById('image-input');
         const mergeButton = document.getElementById('merge-button');
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const mergedImage = document.getElementById('merged-image');
         const downloadButton = document.getElementById('download-button');
         const uploadButtonLink = document.getElementById('upload-button-link');
-        
+        const mergeAgainButton = document.getElementById('merge-again-button');
+        const mergedImage = document.getElementById('merged-image');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
         const step2Instructions = document.getElementById('step2-instructions');
-        const step3Instructions = document.getElementById('step3-instructions');
         
         let mergedBlobUrl = null;
+        let imageFiles = [];
 
-        // Reset the view on new file selection
-        imageInput.addEventListener('change', () => {
+        function resetApp() {
             mergedImage.style.display = 'none';
             downloadButton.style.display = 'none';
-            uploadButtonLink.style.display = 'none';
+            mergeAgainButton.style.display = 'none';
             step2Instructions.style.display = 'none';
-            step3Instructions.style.display = 'none';
+            imageInput.value = null; // Clear file input
+            
             if (mergedBlobUrl) {
                 URL.revokeObjectURL(mergedBlobUrl);
                 mergedBlobUrl = null;
             }
-        });
+            imageFiles = [];
+        }
 
-        // Main image merging logic
+        imageInput.addEventListener('change', (event) => {
+            resetApp();
+            imageFiles = Array.from(event.target.files);
+        });
+        
+        mergeAgainButton.addEventListener('click', resetApp);
+
         mergeButton.addEventListener('click', async () => {
-            const files = imageInput.files;
-            if (files.length < 2) {
+            if (imageFiles.length < 2) {
                 alert('Please select at least two images to merge.');
                 return;
             }
             try {
-                const images = await Promise.all(Array.from(files).map(file => {
+                const images = await Promise.all(imageFiles.map(file => {
                     return new Promise((resolve, reject) => {
                         const img = new Image();
                         img.onload = () => resolve(img);
-                        img.onerror = reject;
+                        img.onerror = () => reject(new Error(`Failed to load: ${file.name}`));
                         img.src = URL.createObjectURL(file);
                     });
                 }));
@@ -174,6 +196,7 @@
                     mergedImage.src = mergedBlobUrl;
                     mergedImage.style.display = 'block';
                     downloadButton.style.display = 'inline-block';
+                    mergeAgainButton.style.display = 'inline-block';
                     step2Instructions.style.display = 'block';
                 }, 'image/png');
 
@@ -183,27 +206,18 @@
             }
         });
 
-        // Handle the download button click
         downloadButton.addEventListener('click', () => {
             if (!mergedBlobUrl) return;
-
             const a = document.createElement('a');
             a.href = mergedBlobUrl;
             a.download = 'merged-image.png';
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            
-            // Show the upload link after download
-            uploadButtonLink.style.display = 'inline-block';
-            step3Instructions.style.display = 'block';
         });
 
-        // PWA Service Worker Registration
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js');
-            });
+            window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
         }
     </script>
 
