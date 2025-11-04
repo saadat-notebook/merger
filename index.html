@@ -6,8 +6,7 @@
     <title>Vertical Image Merger</title>
     
     <link rel="manifest" href="manifest.json">
-    <!-- === UPDATED THIS LINE FOR THE NEW THEME === -->
-    <meta name="theme-color" content="#111111">
+    <meta name="theme-color" content="#ffffff">
 
     <style>
         html, body {
@@ -16,7 +15,7 @@
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f0f0f0; /* Light gray background */
+            background-color: #f0f0f0;
             color: #333;
             line-height: 1.6;
             display: flex;
@@ -62,7 +61,7 @@
             font-weight: bold;
             cursor: pointer;
             color: white;
-            background-color: #333; /* Main button color */
+            background-color: #333;
             border: none;
             border-radius: 5px;
             transition: background-color 0.3s, transform 0.2s;
@@ -71,15 +70,17 @@
             margin: 5px;
         }
         .button:hover:not(:disabled), .button-link:hover {
-            background-color: #111; /* Darken on hover */
+            background-color: #111;
             transform: translateY(-2px);
         }
-        /* Secondary button style */
         .button.secondary, .button-link.secondary {
             background-color: #555;
         }
         .button.secondary:hover, .button-link.secondary:hover {
             background-color: #333;
+        }
+        .button-container {
+            margin-top: 15px;
         }
         #download-button, #merge-again-button {
             display: none;
@@ -95,7 +96,7 @@
             margin-top: 20px;
             font-weight: bold;
             color: #333;
-            display: none; /* Hide instructions initially */
+            display: none;
         }
     </style>
 </head>
@@ -129,7 +130,6 @@
         const imageInput = document.getElementById('image-input');
         const mergeButton = document.getElementById('merge-button');
         const downloadButton = document.getElementById('download-button');
-        const uploadButtonLink = document.getElementById('upload-button-link');
         const mergeAgainButton = document.getElementById('merge-again-button');
         const mergedImage = document.getElementById('merged-image');
         const canvas = document.getElementById('canvas');
@@ -137,36 +137,45 @@
         const step2Instructions = document.getElementById('step2-instructions');
         
         let mergedBlobUrl = null;
-        let imageFiles = [];
 
-        function resetApp() {
+        /**
+         * Resets the UI elements to their initial state.
+         */
+        function resetUI() {
             mergedImage.style.display = 'none';
             downloadButton.style.display = 'none';
             mergeAgainButton.style.display = 'none';
             step2Instructions.style.display = 'none';
-            imageInput.value = null; // Clear file input
             
             if (mergedBlobUrl) {
                 URL.revokeObjectURL(mergedBlobUrl);
                 mergedBlobUrl = null;
             }
-            imageFiles = [];
         }
 
-        imageInput.addEventListener('change', (event) => {
-            resetApp();
-            imageFiles = Array.from(event.target.files);
-        });
+        // --- Event Listeners ---
         
-        mergeAgainButton.addEventListener('click', resetApp);
+        // When user selects files, just reset the view from the previous merge.
+        imageInput.addEventListener('change', resetUI);
+        
+        // The "Merge Again" button fully resets the app.
+        mergeAgainButton.addEventListener('click', () => {
+            resetUI();
+            imageInput.value = ''; // Clear the selected files
+        });
 
         mergeButton.addEventListener('click', async () => {
-            if (imageFiles.length < 2) {
+            // Get the list of files directly from the input element HERE. This is the fix.
+            const files = imageInput.files;
+
+            if (files.length < 2) {
                 alert('Please select at least two images to merge.');
                 return;
             }
+
             try {
-                const images = await Promise.all(imageFiles.map(file => {
+                // Load all images and wait for them to be ready
+                const images = await Promise.all(Array.from(files).map(file => {
                     return new Promise((resolve, reject) => {
                         const img = new Image();
                         img.onload = () => resolve(img);
@@ -175,6 +184,7 @@
                     });
                 }));
 
+                // Calculate dimensions for the final canvas
                 let totalHeight = 0, maxWidth = 0;
                 images.forEach(img => {
                     totalHeight += img.height;
@@ -184,12 +194,14 @@
                 canvas.width = maxWidth;
                 canvas.height = totalHeight;
 
+                // Draw each image onto the canvas, centered horizontally
                 let currentY = 0;
                 images.forEach(img => {
                     ctx.drawImage(img, (maxWidth - img.width) / 2, currentY);
                     currentY += img.height;
                 });
 
+                // Generate the final image blob and update the UI
                 canvas.toBlob(blob => {
                     if (mergedBlobUrl) URL.revokeObjectURL(mergedBlobUrl);
                     mergedBlobUrl = URL.createObjectURL(blob);
@@ -203,12 +215,13 @@
 
             } catch (error) {
                 console.error("Error processing images:", error);
-                alert("An error occurred. Please ensure all files are valid images.");
+                alert("An error occurred while loading the images. Please ensure all files are valid formats.");
             }
         });
 
         downloadButton.addEventListener('click', () => {
             if (!mergedBlobUrl) return;
+
             const a = document.createElement('a');
             a.href = mergedBlobUrl;
             a.download = 'merged-image.png';
@@ -216,7 +229,7 @@
             a.click();
             document.body.removeChild(a);
         });
-
+        
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
         }
